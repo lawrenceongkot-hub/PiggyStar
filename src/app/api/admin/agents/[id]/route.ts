@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getStaffFromToken } from "@/lib/server/rbac";
 import { prisma } from "@/lib/server/prisma";
 import { randomUUID } from "crypto";
-import bcrypt from "bcryptjs";
+import { hash as bcryptHash } from "bcryptjs";
 
 export async function GET(
 request: Request,
@@ -66,14 +66,16 @@ where: { referredUserId: id },
 include: { User_Referral_referrerIdToUser: { select: { id: true, username: true } } },
 });
 
+type DownlinePlayer = typeof downlinePlayers[number];
+
 const totalPlayers = downlinePlayers.length;
-const activePlayers = downlinePlayers.filter(p => p.User_Referral_referredUserIdToUser?.status === "ACTIVE").length;
-const ftdPlayers = downlinePlayers.filter(p => (p.User_Referral_referredUserIdToUser?.totalDeposit || 0) > 0).length;
-const totalDeposits = downlinePlayers.reduce((sum, p) => sum + (p.User_Referral_referredUserIdToUser?.totalDeposit || 0), 0);
-const totalWithdrawals = downlinePlayers.reduce((sum, p) => sum + (p.User_Referral_referredUserIdToUser?.totalWithdraw || 0), 0);
-const totalTurnover = downlinePlayers.reduce((sum, p) => sum + (p.User_Referral_referredUserIdToUser?.totalBet || 0), 0);
-const totalValidBets = downlinePlayers.reduce((sum, p) => sum + (p.User_Referral_referredUserIdToUser?.validBet || 0), 0);
-const totalWins = downlinePlayers.reduce((sum, p) => sum + (p.User_Referral_referredUserIdToUser?.totalWin || 0), 0);
+const activePlayers = downlinePlayers.filter((p: DownlinePlayer) => p.User_Referral_referredUserIdToUser?.status === "ACTIVE").length;
+const ftdPlayers = downlinePlayers.filter((p: DownlinePlayer) => (p.User_Referral_referredUserIdToUser?.totalDeposit || 0) > 0).length;
+const totalDeposits = downlinePlayers.reduce((sum: number, p: DownlinePlayer) => sum + (p.User_Referral_referredUserIdToUser?.totalDeposit || 0), 0);
+const totalWithdrawals = downlinePlayers.reduce((sum: number, p: DownlinePlayer) => sum + (p.User_Referral_referredUserIdToUser?.totalWithdraw || 0), 0);
+const totalTurnover = downlinePlayers.reduce((sum: number, p: DownlinePlayer) => sum + (p.User_Referral_referredUserIdToUser?.totalBet || 0), 0);
+const totalValidBets = downlinePlayers.reduce((sum: number, p: DownlinePlayer) => sum + (p.User_Referral_referredUserIdToUser?.validBet || 0), 0);
+const totalWins = downlinePlayers.reduce((sum: number, p: DownlinePlayer) => sum + (p.User_Referral_referredUserIdToUser?.totalWin || 0), 0);
 const ggr = totalDeposits - totalWithdrawals - totalWins;
 
 const commissionHistory = await prisma.referralReward.findMany({
@@ -141,7 +143,7 @@ const body = await request.json();
 const agent = await prisma.user.findUnique({ where: { id } });
 if (!agent) return NextResponse.json({ error: "Agent not found" }, { status: 404 });
 
-const updateData: any = {};
+const updateData: Record<string, string | number | boolean | null> = {};
 if (body.nickname !== undefined) updateData.nickname = body.nickname;
 if (body.mobile !== undefined) updateData.mobile = body.mobile;
 if (body.email !== undefined) updateData.email = body.email;
@@ -183,7 +185,7 @@ case "lock": await prisma.user.update({ where: { id }, data: { walletLocked: tru
 case "unlock": await prisma.user.update({ where: { id }, data: { walletLocked: false } }); break;
 case "change-password": {
 if (!body.newPassword) return NextResponse.json({ error: "New password required" }, { status: 400 });
-const hashed = await bcrypt.hash(body.newPassword, 12);
+const hashed = await bcryptHash(body.newPassword, 12);
 await prisma.user.update({ where: { id }, data: { password: hashed } });
 break;
 }
