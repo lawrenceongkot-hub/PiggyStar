@@ -1,0 +1,132 @@
+version: "3.8"
+
+# ===== Production Docker Compose =====
+# Architecture:
+#   - backend: API server (Next.js API routes only, port 4000)
+#   - player: Player Website (Next.js, port 3000)
+#   - backoffice: Admin Back Office (Vite build, served by Nginx, port 3001)
+#   - postgres: Database
+#   - redis: Cache/Queue
+#   - nginx: Reverse proxy
+
+services:
+  # ===== PostgreSQL Database =====
+  postgres:
+    image: postgres:16-alpine
+    container_name: piggybet-postgres
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-piggybet_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Must set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-piggybet_db}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-piggybet_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===== Redis (for queues, sessions) =====
+  redis:
+    image: redis:7-alpine
+    container_name: piggybet-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?Must set REDIS_PASSWORD}
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===== Backend API Server (Next.js, port 4000) =====
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: piggybet-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL:-redis://:${REDIS_PASSWORD}@redis:6379}
+      SESSION_SECRET: ${SESSION_SECRET:?Must set SESSION_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?Must set JWT_SECRET}
+      ADMIN_API_KEY: ${ADMIN_API_KEY:?Must set ADMIN_API_KEY}
+      PLAYER_APP_URL: ${PLAYER_APP_URL:-http://player:3000}
+      ADMIN_APP_URL: ${ADMIN_APP_URL:-http://backoffice:3001}
+      OTP_MANUAL_MODE: "false"
+      EMAIL_MANUAL_MODE: "false"
+    ports:
+      - "127.0.0.1:4000:4000"
+    command: >
+      sh -c "npx prisma migrate deploy && npx next start -p 4000"
+
+  # ===== Player Website (Next.js, port 3000) =====
+  player:
+    build:
+      context: ./apps/player
+      dockerfile: Dockerfile
+    container_name: piggybet-player
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: http://backend:4000
+      NEXT_PUBLIC_SITE_URL: ${PLAYER_URL:-https://piggybet.com}
+    ports:
+      - "127.0.0.1:3000:3000"
+
+  # ===== Back Office (Vite build, served by Nginx) =====
+  backoffice:
+    image: nginx:alpine
+    container_name: piggybet-backoffice
+    restart: unless-stopped
+    volumes:
+      - ./back-office/dist:/usr/share/nginx/html:ro
+      - ./nginx/backoffice.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "127.0.0.1:3001:80"
+    depends_on:
+      - backend
+
+  # ===== Nginx Reverse Proxy (SSL termination, routing) =====
+  nginx:
+    image: nginx:alpine
+    container_name: piggybet-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/sites:/etc/nginx/sites:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - certbot_data:/var/www/certbot
+    depends_on:
+      - backend
+      - player
+      - backoffice
+
+  # ===== Certbot (SSL auto-renewal) =====
+  certbot:
+    image: certbot/certbot
+    container_name: piggybet-certbot
+    volumes:
+      - ./ssl:/etc/letsencrypt
+      - certbot_data:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+
+volumes:
+  postgres_data:
+  redis_data:
+  certbot_data:

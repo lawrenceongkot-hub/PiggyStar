@@ -1,0 +1,989 @@
+generator client {
+provider = "prisma-client-js"
+}
+
+datasource db {
+provider = "sqlite"
+url = env("DATABASE_URL")
+}
+
+// ===== EXISTING MODELS (kept for compatibility) =====
+
+model AdminAuditLog {
+id String @id @default(cuid())
+adminId String
+action String
+targetUserId String?
+targetTable String?
+description String?
+changes String?
+ipAddress String?
+status String @default("SUCCESS")
+createdAt DateTime @default(now())
+}
+
+model AdminSetting {
+key String @id
+value String
+type String @default("STRING")
+description String?
+updatedBy String?
+updatedAt DateTime @updatedAt
+}
+
+model Announcement {
+id String @id @default(cuid())
+title String
+content String
+type String @default("GENERAL")
+priority String @default("NORMAL")
+isActive Boolean @default(true)
+createdBy String
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+}
+
+model ApiLog {
+id String @id @default(cuid())
+route String
+method String
+requestBody String?
+responseBody String?
+statusCode Int
+userId String?
+providerId String?
+error String?
+createdAt DateTime @default(now())
+}
+
+model AuditLog {
+id String @id @default(cuid())
+userId String?
+actorId String?
+action String
+entityType String?
+entityId String?
+metadata String?
+ipAddress String?
+device String?
+createdAt DateTime @default(now())
+}
+
+model BalanceAdjustment {
+id String @id @default(cuid())
+userId String
+type String
+amount Float
+reason String
+approvedBy String
+createdAt DateTime @default(now())
+User User @relation(fields: [userId], references: [id])
+}
+
+model BankAccount {
+id String @id @default(cuid())
+userId String
+accountType String
+accountName String
+accountNumber String
+bankName String?
+status String @default("PENDING")
+notes String?
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+User User @relation(fields: [userId], references: [id])
+}
+
+model Bonus {
+id String @id @default(cuid())
+userId String
+promotionId String?
+type String
+amount Float
+status String @default("PENDING")
+description String?
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+Promotion Promotion? @relation(fields: [promotionId], references: [id])
+User User @relation(fields: [userId], references: [id])
+}
+
+model CallbackLog {
+id String @id @default(cuid())
+providerId String?
+type String
+source String
+payload String
+status String
+response String?
+createdAt DateTime @default(now())
+GameProvider GameProvider? @relation(fields: [providerId], references: [id])
+}
+
+model Deposit {
+id String @id @default(cuid())
+userId String
+method String
+amount Float
+reference String
+receiptUrl String?
+status String @default("PENDING")
+orderNumber String @unique
+paymentProvider String?
+paymentMethod String?
+fee Float @default(0)
+netAmount Float @default(0)
+referenceNo String? @unique
+callbackData String?
+paidAt DateTime?
+approvedBy String?
+approvedAt DateTime?
+expiresAt DateTime?
+remarks String?
+ipAddress String?
+device String?
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+User User @relation(fields: [userId], references: [id])
+Transaction Transaction[] @relation("DepositTransactions")
+DepositBonus DepositBonus?
+TurnoverRequirement TurnoverRequirement?
+}
+
+model DepositBonus {
+id String @id @default(cuid())
+depositId String @unique
+userId String
+depositAmount Float
+bonusAmount Float
+finalCredit Float
+promotionName String
+createdAt DateTime @default(now())
+Deposit Deposit @relation(fields: [depositId], references: [id])
+User User @relation(fields: [userId], references: [id])
+}
+
+model TurnoverRequirement {
+id String @id @default(cuid())
+userId String
+depositId String @unique
+depositAmount Float
+bonusAmount Float @default(0)
+totalCredited Float @default(0)
+turnoverMultiplier Float @default(1)
+requiredAmount Float
+completedAmount Float @default(0)
+status String @default("ACTIVE")
+createdAt DateTime @default(now())
+completedAt DateTime?
+updatedAt DateTime @updatedAt
+Deposit Deposit @relation(fields: [depositId], references: [id])
+User User @relation(fields: [userId], references: [id])
+}
+
+model Game {
+id String @id @default(cuid())
+providerId String
+externalId String? @unique
+name String
+category String
+rtp Float?
+metadata String?
+status String @default("INACTIVE")
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+GameProvider GameProvider @relation(fields: [providerId], references: [id])
+GameHistory GameHistory[]
+Bet Bet[]
+}
+
+model GameHistory {
+id String @id @default(cuid())
+userId String
+providerId String
+gameId String
+betAmount Float
+winAmount Float
+validBet Float
+balanceBefore Float
+balanceAfter Float
+jackpot Boolean @default(false)
+providerTransactionId String?
+status String
+startedAt DateTime
+settledAt DateTime?
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+Game Game @relation(fields: [gameId], references: [id])
+GameProvider GameProvider @relation(fields: [providerId], references: [id])
+User User @relation(fields: [userId], references: [id])
+}
+
+model GameType {
+  id String @id @default(cuid())
+  name String @unique
+  slug String @unique
+  description String?
+  sortOrder Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  providers GameProviderType[]
+}
+
+model GameProvider {
+  id String @id @default(cuid())
+  name String
+  slug String @unique
+  status String @default("INACTIVE")
+  providerCode String?
+  apiMapping String?
+  sortOrder Int @default(0)
+  apiUrl String?
+  apiKey String?
+  secretKey String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  CallbackLog CallbackLog[]
+  Game Game[]
+  GameHistory GameHistory[]
+  ProviderTransaction ProviderTransaction[]
+  gameTypes GameProviderType[]
+}
+
+model GameProviderType {
+  id String @id @default(cuid())
+  gameTypeId String
+  providerId String
+  createdAt DateTime @default(now())
+  gameType GameType @relation(fields: [gameTypeId], references: [id], onDelete: Cascade)
+  provider GameProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  @@unique([gameTypeId, providerId])
+  @@index([gameTypeId])
+  @@index([providerId])
+}
+
+model PaymentCallback {
+id String @id @default(cuid())
+callbackId String @unique
+depositId String?
+status String
+payload String
+createdAt DateTime @default(now())
+}
+
+model Notification {
+id String @id @default(cuid())
+userId String
+type String
+title String
+message String
+read Boolean @default(false)
+createdAt DateTime @default(now())
+User User @relation(fields: [userId], references: [id])
+}
+
+model OtpRequest {
+id String @id @default(cuid())
+userId String
+purpose String
+otp String
+verified Boolean @default(false)
+attempts Int @default(0)
+expiresAt DateTime
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+User User @relation(fields: [userId], references: [id])
+@@unique([userId, purpose])
+}
+
+model OtpCode {
+id String @id @default(cuid())
+mobile String
+purpose String
+otpHash String
+otpPlain String?
+status String @default("ACTIVE")
+attempts Int @default(0)
+expiresAt DateTime
+usedAt DateTime?
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+
+@@index([mobile, status])
+@@index([mobile, purpose, status])
+}
+
+model EmailVerificationCode {
+id String @id @default(cuid())
+userId String?
+email String
+purpose String
+verificationHash String
+verificationPlain String?
+status String @default("ACTIVE")
+attempts Int @default(0)
+expiresAt DateTime
+usedAt DateTime?
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+
+@@index([email, status])
+@@index([email, purpose, status])
+}
+
+model PasswordReset {
+id String @id @default(cuid())
+userId String @unique
+otp String
+verified Boolean @default(false)
+used Boolean @default(false)
+attempts Int @default(0)
+expiresAt DateTime
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+User User @relation(fields: [userId], references: [id])
+}
+
+model PlayerStatistics {
+id String @id @default(cuid())
+userId String @unique
+totalGamesPlayed Int @default(0)
+totalBets Float @default(0.00)
+totalWinnings Float @default(0.00)
+biggestWin Float @default(0.00)
+winRate Float @default(0.00)
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+User User @relation(fields: [userId], references: [id])
+}
+
+model Promotion {
+id String @id @default(cuid())
+name String
+type String
+description String?
+bonusAmount Float
+minDeposit Float @default(0)
+requirementMultiplier Float @default(1)
+validFrom DateTime
+validUntil DateTime
+isActive Boolean @default(true)
+createdBy String
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+Bonus Bonus[]
+}
+
+model ProviderTransaction {
+id String @id @default(cuid())
+providerId String
+userId String
+type String
+amount Float
+status String
+externalReference String? @unique
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+User User @relation(fields: [userId], references: [id])
+GameProvider GameProvider @relation(fields: [providerId], references: [id])
+}
+
+model Referral {
+id String @id @default(cuid())
+referrerId String
+referredUserId String
+referralCode String
+status String @default("ACTIVE")
+commissionEarned Float @default(0.00)
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+User_Referral_referredUserIdToUser User @relation("Referral_referredUserIdToUser", fields: [referredUserId], references: [id])
+User_Referral_referrerIdToUser User @relation("Referral_referrerIdToUser", fields: [referrerId], references: [id])
+ReferralReward ReferralReward[]
+@@unique([referrerId, referredUserId])
+}
+
+model SecurityLog {
+id String @id @default(cuid())
+userId String
+type String
+ip String?
+device String?
+metadata String?
+createdAt DateTime @default(now())
+User User @relation(fields: [userId], references: [id])
+}
+
+model Transaction {
+id String @id @default(cuid())
+userId String
+type String
+status String @default("SUCCESS")
+amount Float
+previousBalance Float @default(0)
+balanceAfter Float
+referenceNumber String?
+description String
+relatedId String?
+createdAt DateTime @default(now())
+User User @relation(fields: [userId], references: [id])
+depositId String?
+withdrawalId String?
+Deposit Deposit? @relation("DepositTransactions", fields: [depositId], references: [id])
+Withdrawal Withdrawal? @relation("WithdrawalTransactions", fields: [withdrawalId], references: [id])
+}
+
+model User {
+id String @id @default(cuid())
+userId String @unique @default("")
+username String @unique
+email String?
+emailVerified Boolean @default(false)
+emailVerifiedAt DateTime?
+mobile String?
+mobileVerified Boolean @default(false)
+mobileVerifiedAt DateTime?
+fullName String?
+usernameUpdatedAt DateTime?
+password String
+referralCode String? @unique
+avatar String?
+nickname String?
+role String @default("USER")
+status String @default("ACTIVE")
+vipLevel Int @default(0)
+vipPoints Int @default(0)
+vipTotalDeposit Float @default(0)
+vipTotalValidBet Float @default(0)
+vipTotalTurnover Float @default(0)
+vipUpdatedAt DateTime?
+mainBalance Float @default(0)
+bonusBalance Float @default(0)
+pendingBalance Float @default(0)
+balance Float @default(0.00)
+commission Float @default(0.00)
+totalDeposit Float @default(0.00)
+totalWithdraw Float @default(0.00)
+totalBet Float @default(0.00)
+totalWin Float @default(0.00)
+validBet Float @default(0.00)
+rebate Float @default(0.00)
+bonus Float @default(0.00)
+points Int @default(0)
+walletLocked Boolean @default(false)
+firstDepositBonusClaimed Boolean @default(false)
+lastLogin DateTime?
+registrationIp String?
+registrationDevice String?
+lastLoginIp String?
+lastLoginDevice String?
+riskScore Int @default(0)
+fraudStatus String @default("CLEAN")
+// Multiple Account Detection fields
+banReason String?
+banDate DateTime?
+banDetectionSource String?
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+BalanceAdjustment BalanceAdjustment[]
+BankAccount BankAccount[]
+Bonus Bonus[]
+Deposit Deposit[]
+DepositBonus DepositBonus[]
+TurnoverRequirement TurnoverRequirement[]
+GameHistory GameHistory[]
+Notification Notification[]
+OtpRequest OtpRequest[]
+PasswordReset PasswordReset?
+PlayerStatistics PlayerStatistics?
+ProviderTransaction ProviderTransaction[]
+Referral_Referral_referredUserIdToUser Referral[] @relation("Referral_referredUserIdToUser")
+Referral_Referral_referrerIdToUser Referral[] @relation("Referral_referrerIdToUser")
+SecurityLog SecurityLog[]
+Transaction Transaction[]
+VIPProgress VIPProgress?
+Wallet Wallet[]
+Withdrawal Withdrawal[]
+Session Session[]
+Device Device[]
+ActivityLog ActivityLog[]
+EWalletAccount EWalletAccount[]
+Bet Bet[]
+BetHistory BetHistory[]
+Settlement Settlement[]
+ReferralReward ReferralReward[]
+Leaderboard Leaderboard[]
+Inbox Inbox[]
+SupportTicket SupportTicket[]
+WithdrawBank WithdrawBank[]
+WithdrawalPassword WithdrawalPassword?
+WithdrawalLog WithdrawalLog[]
+ReferralCode ReferralCode?
+AccountSecurity AccountSecurity?
+VIPReward VIPReward[]
+}
+
+model VIPProgress {
+id String @id @default(cuid())
+userId String @unique
+currentLevel Int @default(0)
+pointsToNextLevel Int @default(0)
+totalPoints Int @default(0)
+upgradeHistory String?
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+User User @relation(fields: [userId], references: [id])
+}
+
+model VIPReward {
+id String @id @default(cuid())
+userId String
+type String // CASHBACK | SALARY | BIRTHDAY_BONUS
+vipLevel Int
+amount Float
+status String @default("PENDING") // PENDING | CLAIMED | EXPIRED
+periodStart DateTime?
+periodEnd DateTime?
+claimedAt DateTime?
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+User User @relation(fields: [userId], references: [id])
+
+@@index([userId, type, status])
+@@index([userId, type, createdAt])
+}
+
+model Wallet {
+id String @id @default(cuid())
+userId String
+provider String
+accountName String
+accountNumber String
+withdrawalPasswordHash String?
+status String @default("VERIFIED")
+isDefault Boolean @default(false)
+lockedUntil DateTime?
+changeRequestedAt DateTime?
+changeRequestStatus String?
+changeRequestNote String?
+pendingProvider String?
+pendingAccountName String?
+pendingAccountNumber String?
+pendingWithdrawalPasswordHash String?
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+User User @relation(fields: [userId], references: [id])
+Withdrawal Withdrawal[]
+}
+
+model WalletLedgerEntry {
+id String @id @default(cuid())
+userId String
+type String
+amount Float
+balanceBefore Float
+balanceAfter Float
+reference String?
+description String
+createdAt DateTime @default(now())
+}
+
+model Withdrawal {
+id String @id @default(cuid())
+userId String
+walletId String?
+amount Float
+status String @default("PENDING")
+withdrawNo String @unique
+bankName String?
+accountName String?
+accountNumber String?
+fee Float @default(0)
+netAmount Float @default(0)
+remarks String?
+approvedBy String?
+approvedAt DateTime?
+referenceNo String? @unique
+ipAddress String?
+device String?
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+Wallet Wallet? @relation(fields: [walletId], references: [id])
+User User @relation(fields: [userId], references: [id])
+Transaction Transaction[] @relation("WithdrawalTransactions")
+}
+
+model WithdrawBank {
+id String @id @default(cuid())
+userId String
+accountType String @default("BANK")
+bankName String
+accountName String
+accountNumber String
+isDefault Boolean @default(false)
+status String @default("ACTIVE")
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+User User @relation(fields: [userId], references: [id])
+WithdrawalLog WithdrawalLog[]
+}
+
+model WithdrawalPassword {
+id String @id @default(cuid())
+userId String @unique
+passwordHash String
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+User User @relation(fields: [userId], references: [id])
+}
+
+model WithdrawalLog {
+id String @id @default(cuid())
+userId String
+withdrawBankId String?
+action String
+amount Float?
+status String
+ipAddress String?
+metadata String?
+createdAt DateTime @default(now())
+User User @relation(fields: [userId], references: [id])
+WithdrawBank WithdrawBank? @relation(fields: [withdrawBankId], references: [id])
+}
+
+model ReferralCode {
+id String @id @default(cuid())
+userId String @unique
+code String @unique
+createdAt DateTime @default(now())
+User User @relation(fields: [userId], references: [id])
+@@index([code])
+}
+
+model ReferralReward {
+id String @id @default(cuid())
+referralId String
+userId String
+amount Float
+status String @default("PENDING")
+createdAt DateTime @default(now())
+Referral Referral @relation(fields: [referralId], references: [id])
+User User @relation(fields: [userId], references: [id])
+}
+
+model ReferralLog {
+id String @id @default(cuid())
+referrerId String
+referredId String
+depositAmount Float
+rewardAmount Float
+status String @default("SUCCESS")
+createdAt DateTime @default(now())
+}
+
+model PromotionConfig {
+id String @id @default(cuid())
+key String @unique
+value String
+}
+
+model Session {
+id String @id @default(cuid())
+userId String
+refreshToken String @unique
+ipAddress String?
+device String?
+userAgent String?
+expiresAt DateTime
+createdAt DateTime @default(now())
+User User @relation(fields: [userId], references: [id])
+@@index([userId])
+}
+
+model Device {
+id String @id @default(cuid())
+userId String
+name String
+ip String?
+lastSeen DateTime @default(now())
+createdAt DateTime @default(now())
+User User @relation(fields: [userId], references: [id])
+}
+
+model ActivityLog {
+id String @id @default(cuid())
+userId String?
+action String
+metadata String?
+ipAddress String?
+device String?
+createdAt DateTime @default(now())
+User User? @relation(fields: [userId], references: [id])
+}
+
+model WebhookLog {
+id String @id @default(cuid())
+provider String
+event String
+payload String
+status String
+response String?
+attempt Int @default(0)
+createdAt DateTime @default(now())
+}
+
+model PaymentProvider {
+id String @id @default(cuid())
+name String
+providerKey String?
+secret String?
+config String?
+status String @default("INACTIVE")
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+}
+
+model ProviderConfiguration {
+id String @id @default(cuid())
+provider String
+key String
+value String
+secret Boolean @default(false)
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+@@unique([provider, key])
+}
+
+model EWalletAccount {
+id String @id @default(cuid())
+userId String
+provider String
+accountId String
+accountName String?
+verified Boolean @default(false)
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+User User @relation(fields: [userId], references: [id])
+}
+
+model Bet {
+id String @id @default(cuid())
+userId String
+gameId String
+betAmount Float
+winAmount Float @default(0)
+status String @default("PENDING")
+roundId String?
+providerRef String?
+createdAt DateTime @default(now())
+settledAt DateTime?
+User User @relation(fields: [userId], references: [id])
+Game Game @relation(fields: [gameId], references: [id])
+BetHistory BetHistory[]
+Settlement Settlement[]
+}
+
+model BetHistory {
+id String @id @default(cuid())
+betId String
+userId String
+change Float
+reason String
+createdAt DateTime @default(now())
+Bet Bet @relation(fields: [betId], references: [id])
+User User @relation(fields: [userId], references: [id])
+}
+
+model Settlement {
+id String @id @default(cuid())
+betId String
+userId String
+amount Float
+status String @default("PENDING")
+createdAt DateTime @default(now())
+processedAt DateTime?
+Bet Bet @relation(fields: [betId], references: [id])
+User User @relation(fields: [userId], references: [id])
+}
+
+model Rollback {
+id String @id @default(cuid())
+entity String
+entityId String
+reason String
+performedBy String?
+createdAt DateTime @default(now())
+}
+
+model Leaderboard {
+id String @id @default(cuid())
+userId String
+score Float
+period String
+createdAt DateTime @default(now())
+User User @relation(fields: [userId], references: [id])
+}
+
+model Mission {
+id String @id @default(cuid())
+name String
+description String?
+reward Float
+expiresAt DateTime?
+createdAt DateTime @default(now())
+}
+
+model Inbox {
+id String @id @default(cuid())
+userId String
+subject String
+body String
+read Boolean @default(false)
+createdAt DateTime @default(now())
+User User @relation(fields: [userId], references: [id])
+}
+
+model SupportTicket {
+id String @id @default(cuid())
+userId String
+subject String
+message String
+status String @default("OPEN")
+assignedTo String?
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+User User @relation(fields: [userId], references: [id])
+}
+
+model SystemSetting {
+id String @id @default(cuid())
+key String @unique
+value String
+type String @default("STRING")
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+}
+
+// ===== SECURITY CENTER MODEL (5 items only) =====
+
+model AccountSecurity {
+id String @id @default(cuid())
+userId String @unique
+mobileVerified Boolean @default(false)
+emailVerified Boolean @default(false)
+loginPasswordSet Boolean @default(false)
+withdrawPasswordSet Boolean @default(false)
+bankVerified Boolean @default(false)
+securityPercentage Int @default(0)
+updatedAt DateTime @updatedAt
+createdAt DateTime @default(now())
+User User @relation(fields: [userId], references: [id])
+}
+
+// ===== RBAC MODELS =====
+
+model StaffRole {
+id String @id @default(cuid())
+name String @unique
+slug String @unique
+description String?
+isSystem Boolean @default(false)
+isActive Boolean @default(true)
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+staff Staff[]
+permissions StaffRolePermission[]
+}
+
+model StaffPermission {
+id String @id @default(cuid())
+name String @unique
+slug String @unique
+group String
+description String?
+createdAt DateTime @default(now())
+roles StaffRolePermission[]
+}
+
+model StaffRolePermission {
+id String @id @default(cuid())
+roleId String
+permissionId String
+createdAt DateTime @default(now())
+role StaffRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+permission StaffPermission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+@@unique([roleId, permissionId])
+@@index([roleId])
+@@index([permissionId])
+}
+
+model Staff {
+id String @id @default(cuid())
+adminId String @unique @default("")
+username String @unique
+email String @unique
+password String
+name String
+roleId String
+role StaffRole @relation(fields: [roleId], references: [id])
+status String @default("ACTIVE")
+failedLoginAttempts Int @default(0)
+lockedUntil DateTime?
+lastLogin DateTime?
+lastLoginIp String?
+lastLoginDevice String?
+createdBy String?
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+sessions StaffSession[]
+loginAttempts StaffLoginAttempt[]
+activityLogs StaffActivityLog[]
+@@index([roleId])
+@@index([status])
+}
+
+model StaffSession {
+id String @id @default(cuid())
+staffId String
+refreshToken String @unique
+accessToken String?
+ipAddress String?
+device String?
+userAgent String?
+expiresAt DateTime
+isRevoked Boolean @default(false)
+createdAt DateTime @default(now())
+staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+@@index([staffId])
+@@index([refreshToken])
+}
+
+model StaffLoginAttempt {
+id String @id @default(cuid())
+staffId String
+success Boolean
+ipAddress String?
+device String?
+userAgent String?
+reason String?
+createdAt DateTime @default(now())
+staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+@@index([staffId])
+@@index([createdAt])
+}
+
+model StaffActivityLog {
+id String @id @default(cuid())
+staffId String
+action String
+entity String?
+entityId String?
+details String?
+ipAddress String?
+device String?
+createdAt DateTime @default(now())
+staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+@@index([staffId])
+@@index([createdAt])
+@@index([action])
+}

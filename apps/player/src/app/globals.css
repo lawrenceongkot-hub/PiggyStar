@@ -1,0 +1,208 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+color-scheme: dark;
+}
+
+html {
+scroll-behavior: smooth;
+}
+
+body {
+min-height: 100dvh;
+background:
+radial-gradient(circle at top, rgba(212, 175, 55, 0.06), transparent 32%),
+radial-gradient(circle at bottom right, rgba(46, 204, 113, 0.06), transparent 28%),
+#0A1A0F;
+}
+
+* {
+scrollbar-width: thin;
+scrollbar-color: rgba(212, 175, 55, 0.35) rgba(255, 255, 255, 0.03);
+}
+
+*::-webkit-scrollbar {
+width: 8px;
+height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+background: rgba(255, 255, 255, 0.02);
+}
+
+*::-webkit-scrollbar-thumb {
+background: linear-gradient(180deg, rgba(212, 175, 55, 0.6), rgba(46, 204, 113, 0.5));
+border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+background: linear-gradient(180deg, rgba(212, 175, 55, 0.8), rgba(46, 204, 113, 0.7));
+}
+
+::selection {
+background: rgba(212, 175, 55, 0.25);
+color: #fff;
+}
+
+/* Main logo styling */
+.main-logo {
+height: 56px !important;
+width: auto !important;
+object-fit: contain !important;
+display: block !important;
+image-rendering: auto !important;
+}
+
+@media (max-width: 1024px) {
+.main-logo {
+height: 48px !important;
+}
+}
+
+@media (max-width: 640px) {
+.main-logo {
+height: 44px !important;
+}
+}
+
+/* Glass morphism utility */
+.glass {
+@apply border border-white/[0.08] bg-white/5 backdrop-blur-xl;
+}
+
+.glass-green {
+@apply border border-emerald/20 bg-emerald/5 backdrop-blur-xl;
+}
+
+.glass-gold {
+@apply border border-gold/20 bg-gold/5 backdrop-blur-xl;
+}
+
+/* Gold border glow */
+.gold-border {
+box-shadow: 0 0 0 1px rgba(212, 175, 55, 0.2), 0 0 50px rgba(212, 175, 55, 0.06);
+}
+
+.emerald-border {
+box-shadow: 0 0 0 1px rgba(46, 204, 113, 0.2), 0 0 50px rgba(46, 204, 113, 0.06);
+}
+
+/* Grid background for sections */
+.grid-shell {
+background-image:
+linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+background-size: 32px 32px;
+mask-image: radial-gradient(circle at center, black, transparent 80%);
+}
+
+/* Text glow */
+.text-glow {
+text-shadow: 0 0 20px rgba(212, 175, 55, 0.15);
+}
+
+.text-glow-emerald {
+text-shadow: 0 0 20px rgba(46, 204, 113, 0.15);
+}
+
+/* Hide scrollbar for category bars */
+.hide-scrollbar {
+-ms-overflow-style: none;
+scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+display: none;
+}
+
+/* Loading shimmer */
+.shimmer-bg {
+background: linear-gradient(
+90deg,
+rgba(255, 255, 255, 0.03) 0%,
+rgba(255, 255, 255, 0.06) 50%,
+rgba(255, 255, 255, 0.03) 100%
+);
+background-size: 200% 100%;
+}
+
+/* Gradient text */
+.gradient-gold {
+background: linear-gradient(135deg, #D4AF37, #F0D060, #B8962E);
+-webkit-background-clip: text;
+-webkit-text-fill-color: transparent;
+background-clip: text;
+}
+
+.gradient-emerald {
+background: linear-gradient(135deg, #2ECC71, #58D68D, #1A9C4A);
+-webkit-background-clip: text;
+-webkit-text-fill-color: transparent;
+background-clip: text;
+}
+
+/* ===== UNIVERSAL RESPONSIVE DESIGN SYSTEM ===== */
+
+/* Fluid containers that never overflow the viewport */
+.responsive-container {
+width: 100%;
+max-width: min(100%, 1800px);
+margin-left: auto;
+margin-right: auto;
+padding-left: clamp(0.75rem, 2vw, 2rem);
+padding-right: clamp(0.75rem, 2vw, 2rem);
+}
+
+/* Responsive cards */
+.responsive-card {
+width: 100%;
+max-width: 100%;
+overflow: hidden;
+}
+
+/* Responsive grid preset */
+.responsive-grid {
+display: grid;
+grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+gap: clamp(0.5rem, 1.5vw, 1.5rem);
+}
+
+/* Responsive text sizing */
+.text-fluid-sm {
+font-size: clamp(0.75rem, 1.5vw, 0.875rem);
+}
+
+.text-fluid-base {
+font-size: clamp(0.875rem, 2vw, 1rem);
+}
+
+.text-fluid-lg {
+font-size: clamp(1rem, 2.5vw, 1.25rem);
+}
+
+.text-fluid-xl {
+font-size: clamp(1.25rem, 3vw, 1.5rem);
+}
+
+/* Responsive spacing */
+.gap-fluid {
+gap: clamp(0.5rem, 1.5vw, 1.5rem);
+}
+
+.p-fluid {
+padding: clamp(0.75rem, 2vw, 2rem);
+}
+
+/* Minimum touch target */
+.touch-target {
+min-height: 44px;
+min-width: 44px;
+}
+
+/* Responsive images */
+img, video, iframe {
+max-width: 100%;
+height: auto;
+}

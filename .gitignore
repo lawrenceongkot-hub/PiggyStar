@@ -1,0 +1,59 @@
+# ===== Dependencies =====
+node_modules/
+.pnp
+.pnp.js
+
+# ===== Next.js =====
+.next/
+out/
+
+# ===== Build Output =====
+dist/
+build/
+
+# ===== Environment Files (keep .env.example tracked) =====
+.env
+.env.local
+.env.staging
+.env.production
+.env.development
+**/node_modules/
+**/.next/
+**/dist/
+**/build/
+
+# ===== IDE =====
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+
+# ===== Prisma =====
+prisma/dev.db
+prisma/dev.db-journal
+
+# ===== Logs =====
+logs/
+*.log
+npm-debug.log*
+
+# ===== Test =====
+coverage/
+test-results/
+
+# ===== SSL (generated at deploy time) =====
+ssl/
+
+# ===== PM2 =====
+pm2-*.log
+
+# ===== Misc =====
+*.tsbuildinfo
+next-env.d.ts
+
+# ===== Docker =====
+.docker/

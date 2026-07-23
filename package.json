@@ -1,0 +1,29 @@
+{
+  "name": "piggybet",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n \"🏢API,🎮PLAYER,⚙️ADMIN\" -c \"green,cyan,yellow\" \"npm run dev:backend\" \"npm run dev:player\" \"npm run dev:admin\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:player": "cd apps/player && npm run dev",
+    "dev:admin": "cd apps/admin && npm run dev",
+    "build": "npm run build:backend && npm run build:player && npm run build:admin",
+    "build:backend": "cd backend && npm run build",
+    "build:player": "cd apps/player && npm run build",
+    "build:admin": "cd apps/admin && npm run build",
+    "start": "concurrently -n \"🏢API,🎮PLAYER,⚙️ADMIN\" \"npm run start:backend\" \"npm run start:player\" \"npm run start:admin\"",
+    "start:backend": "cd backend && npm start",
+    "start:player": "cd apps/player && npm start",
+    "start:admin": "cd apps/admin && npm start",
+    "lint": "concurrently \"cd backend && npm run lint\" \"cd apps/player && npm run lint\" \"cd apps/admin && npm run lint\"",
+    "db:migrate": "cd backend && npx prisma migrate deploy",
+    "db:generate": "cd backend && npx prisma generate",
+    "db:push": "cd backend && npx prisma db push",
+    "expire-deposits": "cd backend && node scripts/expire-pending-deposits.js",
+    "worker:expire": "cd backend && node scripts/worker/expire-deposits.js"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.3",
+    "typescript": "^5.9.3"
+  }
+}
