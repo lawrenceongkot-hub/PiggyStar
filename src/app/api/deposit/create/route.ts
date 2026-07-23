@@ -141,7 +141,7 @@ export async function POST(request: Request) {
           description: `Deposit of ₱${amount.toLocaleString()} via ${paymentMethod}`,
           success_redirect_url: `${siteUrl}/transactions?status=success&order=${orderNumber}`,
           failure_redirect_url: `${siteUrl}/transactions?status=failed&order=${orderNumber}`,
-          callback_url: moxsysConfig.callbackUrl,
+          callback_url: moxsysConfig?.callbackUrl || `${siteUrl}/api/payment/moxsys/webhook`,
           payment_method: METHOD_TO_MOXSYS[paymentMethod] || "checkout",
           metadata: {
             userId: user.id,
