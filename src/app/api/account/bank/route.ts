@@ -126,9 +126,8 @@ const newBank = await tx.withdrawBank.create({
 return newBank;
 });
 
-// Mark bank as verified for Security Center regardless of PENDING/ACTIVE status
-// The user successfully linked their account; admin approval is for withdrawal operations
-await updateSecurityStatus(user.id, { bankVerified: true });
+// Mark bank/e-wallet as verified for Security Center
+await updateSecurityStatus(user.id);
 
 return NextResponse.json({
 message: "Bank account added successfully",
@@ -225,11 +224,8 @@ await prisma.withdrawBank.delete({
 where: { id: result.data.bankId },
 });
 
-// Update bank verified status
-const remainingBanks = await prisma.withdrawBank.count({
-where: { userId: user.id, status: { not: "REMOVED" } },
-});
-await updateSecurityStatus(user.id, { bankVerified: remainingBanks > 0 });
+// Update security status
+await updateSecurityStatus(user.id);
 
 return NextResponse.json({ message: "Bank account deleted" });
 } catch (error) {
