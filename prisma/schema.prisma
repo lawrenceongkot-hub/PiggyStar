@@ -80,20 +80,6 @@ createdAt DateTime @default(now())
 User User @relation(fields: [userId], references: [id])
 }
 
-model BankAccount {
-id String @id @default(cuid())
-userId String
-accountType String
-accountName String
-accountNumber String
-bankName String?
-status String @default("PENDING")
-notes String?
-createdAt DateTime @default(now())
-updatedAt DateTime @updatedAt
-User User @relation(fields: [userId], references: [id])
-}
-
 model Bonus {
 id String @id @default(cuid())
 userId String
@@ -479,14 +465,12 @@ lastLoginIp String?
 lastLoginDevice String?
 riskScore Int @default(0)
 fraudStatus String @default("CLEAN")
-// Multiple Account Detection fields
 banReason String?
 banDate DateTime?
 banDetectionSource String?
 createdAt DateTime @default(now())
 updatedAt DateTime @updatedAt
 BalanceAdjustment BalanceAdjustment[]
-BankAccount BankAccount[]
 Bonus Bonus[]
 Deposit Deposit[]
 DepositBonus DepositBonus[]
@@ -515,7 +499,6 @@ ReferralReward ReferralReward[]
 Leaderboard Leaderboard[]
 Inbox Inbox[]
 SupportTicket SupportTicket[]
-WithdrawBank WithdrawBank[]
 WithdrawalPassword WithdrawalPassword?
 WithdrawalLog WithdrawalLog[]
 ReferralCode ReferralCode?
@@ -538,17 +521,16 @@ User User @relation(fields: [userId], references: [id])
 model VIPReward {
 id String @id @default(cuid())
 userId String
-type String // CASHBACK | SALARY | BIRTHDAY_BONUS
+type String
 vipLevel Int
 amount Float
-status String @default("PENDING") // PENDING | CLAIMED | EXPIRED
+status String @default("PENDING")
 periodStart DateTime?
 periodEnd DateTime?
 claimedAt DateTime?
 createdAt DateTime @default(now())
 updatedAt DateTime @updatedAt
 User User @relation(fields: [userId], references: [id])
-
 @@index([userId, type, status])
 @@index([userId, type, createdAt])
 }
@@ -595,9 +577,10 @@ walletId String?
 amount Float
 status String @default("PENDING")
 withdrawNo String @unique
-bankName String?
+// E-wallet fields (replacing bank fields)
+paymentMethod String? // GCASH, MAYA
 accountName String?
-accountNumber String?
+accountNumber String? // mobile number
 fee Float @default(0)
 netAmount Float @default(0)
 remarks String?
@@ -613,21 +596,6 @@ User User @relation(fields: [userId], references: [id])
 Transaction Transaction[] @relation("WithdrawalTransactions")
 }
 
-model WithdrawBank {
-id String @id @default(cuid())
-userId String
-accountType String @default("BANK")
-bankName String
-accountName String
-accountNumber String
-isDefault Boolean @default(false)
-status String @default("ACTIVE")
-createdAt DateTime @default(now())
-updatedAt DateTime @updatedAt
-User User @relation(fields: [userId], references: [id])
-WithdrawalLog WithdrawalLog[]
-}
-
 model WithdrawalPassword {
 id String @id @default(cuid())
 userId String @unique
@@ -640,7 +608,6 @@ User User @relation(fields: [userId], references: [id])
 model WithdrawalLog {
 id String @id @default(cuid())
 userId String
-withdrawBankId String?
 action String
 amount Float?
 status String
@@ -648,7 +615,6 @@ ipAddress String?
 metadata String?
 createdAt DateTime @default(now())
 User User @relation(fields: [userId], references: [id])
-WithdrawBank WithdrawBank? @relation(fields: [withdrawBankId], references: [id])
 }
 
 model ReferralCode {
@@ -757,13 +723,50 @@ updatedAt DateTime @updatedAt
 model EWalletAccount {
 id String @id @default(cuid())
 userId String
-provider String
-accountId String
-accountName String?
+provider String // GCASH, MAYA
+accountName String
+accountNumber String // Mobile number
+isDefault Boolean @default(false)
+status String @default("ACTIVE") // ACTIVE, INACTIVE
 verified Boolean @default(false)
 createdAt DateTime @default(now())
 updatedAt DateTime @updatedAt
 User User @relation(fields: [userId], references: [id])
+}
+
+// ===== NEW: Payment Method Configuration =====
+model PaymentMethod {
+id String @id @default(cuid())
+code String @unique // GCASH, MAYA, QRPH
+name String // Display name
+type String // DEPOSIT, WITHDRAWAL, BOTH
+status String @default("ACTIVE") // ACTIVE, INACTIVE, MAINTENANCE
+sortOrder Int @default(0)
+minAmount Float @default(0)
+maxAmount Float @default(999999)
+logoUrl String?
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+config PaymentMethodConfig?
+}
+
+model PaymentMethodConfig {
+id String @id @default(cuid())
+paymentMethodId String @unique
+merchantId String?
+merchantKey String?
+apiKey String?
+secretKey String?
+webhookUrl String?
+callbackUrl String?
+publicKey String?
+privateKey String?
+apiEndpoint String?
+sandboxUrl String?
+productionUrl String?
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+paymentMethod PaymentMethod @relation(fields: [paymentMethodId], references: [id], onDelete: Cascade)
 }
 
 model Bet {
@@ -864,8 +867,7 @@ createdAt DateTime @default(now())
 updatedAt DateTime @updatedAt
 }
 
-// ===== SECURITY CENTER MODEL (5 items only) =====
-
+// ===== SECURITY CENTER MODEL =====
 model AccountSecurity {
 id String @id @default(cuid())
 userId String @unique
@@ -873,7 +875,7 @@ mobileVerified Boolean @default(false)
 emailVerified Boolean @default(false)
 loginPasswordSet Boolean @default(false)
 withdrawPasswordSet Boolean @default(false)
-bankVerified Boolean @default(false)
+eWalletVerified Boolean @default(false)
 securityPercentage Int @default(0)
 updatedAt DateTime @updatedAt
 createdAt DateTime @default(now())
@@ -881,7 +883,6 @@ User User @relation(fields: [userId], references: [id])
 }
 
 // ===== RBAC MODELS =====
-
 model StaffRole {
 id String @id @default(cuid())
 name String @unique
