@@ -40,30 +40,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     let bankCode = parsed.success && parsed.data.bankCode ? parsed.data.bankCode : "";
     const payoutType = (parsed.success && parsed.data.payoutType) || "instapay";
 
-    // Derive bank code from bank name if not provided
-    if (!bankCode && withdrawal.bankName) {
-      const bankNameLower = withdrawal.bankName.toLowerCase();
-      const bankCodeMap: Record<string, string> = {
-        "bdo": "bdo",
-        "bpi": "bpi",
-        "metrobank": "metrobank",
-        "landbank": "landbank",
-        "pnb": "pnb",
-        "unionbank": "unionbank",
-        "security bank": "securitybank",
-        "eastwest": "eastwest",
-        "china bank": "chinabank",
-        "rcbc": "rcbc",
-        "gcash": "gcash",
-        "maya": "maya",
-        "paymaya": "maya",
-      };
-      for (const [key, code] of Object.entries(bankCodeMap)) {
-        if (bankNameLower.includes(key)) {
-          bankCode = code;
-          break;
-        }
-      }
+    // Derive bank code from payment method
+    if (!bankCode && withdrawal.paymentMethod) {
+      const method = withdrawal.paymentMethod.toLowerCase();
+      if (method.includes("gcash")) bankCode = "gcash";
+      else if (method.includes("maya")) bankCode = "maya";
+      else bankCode = "bdo";
     }
 
     const updated = await prisma.$transaction(async (tx: any) => {
