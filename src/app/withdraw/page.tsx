@@ -13,7 +13,7 @@ const user = useCurrentUser();
 const [securityCheck, setSecurityCheck] = useState<"loading" | "blocked" | "allowed">("loading");
 const [securityPercentage, setSecurityPercentage] = useState(0);
 const [missingItems, setMissingItems] = useState<string[]>([]);
-const [selectedBankId, setSelectedBankId] = useState<string>("");
+const [selectedEWalletId, setSelectedEWalletId] = useState<string>("");
 const [amount, setAmount] = useState("");
 const [password, setPassword] = useState("");
 const [remarks, setRemarks] = useState("");
@@ -21,7 +21,7 @@ const [loading, setLoading] = useState(false);
 const [message, setMessage] = useState<string | null>(null);
 const [error, setError] = useState<string | null>(null);
 const [walletBalance, setWalletBalance] = useState<number | null>(null);
-const [boundBanks, setBoundBanks] = useState<Array<{ id: string; bankName: string; accountName: string; accountNumber: string; isDefault: boolean }>>([]);
+const [eWalletAccounts, setEWalletAccounts] = useState<Array<{ id: string; provider: string; accountName: string; accountNumber: string; isDefault: boolean }>>([]);
 const [turnover, setTurnover] = useState<{
 required: number;
 completed: number;
@@ -30,8 +30,8 @@ progress: number;
 allowed: boolean;
 } | null>(null);
 
-const selectedBank = boundBanks.find(b => b.id === selectedBankId) || boundBanks[0];
-const canWithdraw = boundBanks.length > 0;
+const selectedEWallet = eWalletAccounts.find(b => b.id === selectedEWalletId) || eWalletAccounts[0];
+const canWithdraw = eWalletAccounts.length > 0;
 const fee = 0;
 const numericAmount = useMemo(() => Number(amount.replace(/[^0-9.]/g, "")) || 0, [amount]);
 const receiveAmount = numericAmount > 0 ? numericAmount - fee : 0;
@@ -52,7 +52,7 @@ if (!sec?.mobileVerified) missing.push("Mobile Number");
 if (!sec?.emailVerified) missing.push("Email Address");
 if (!sec?.loginPasswordSet) missing.push("Login Password");
 if (!sec?.withdrawPasswordSet) missing.push("Withdrawal Password");
-if (!sec?.bankVerified) missing.push("Bank Account");
+if (!sec?.eWalletVerified) missing.push("E-Wallet Account");
 setMissingItems(missing);
 
 if (pct < 100) {
@@ -60,61 +60,47 @@ setSecurityCheck("blocked");
 return;
 }
 setSecurityCheck("allowed");
-} catch {
-setSecurityCheck("blocked");
-}
+} catch { setSecurityCheck("blocked"); }
 };
 checkSecurity();
 }, [isAuthenticated]);
 
 useEffect(() => {
-if (securityCheck !== "allowed") return;
-const loadData = async () => {
+if (!isAuthenticated || securityCheck !== "allowed") return;
+const fetchData = async () => {
 try {
-const [walletData, bankData, turnoverData] = await Promise.all([
-apiFetch<{ wallet: { mainBalance: number } }>('/api/wallet'),
-apiFetch<{ banks: any[]; defaultBank: any }>('/api/withdraw/bind'),
-apiFetch<any>('/api/turnover'),
+const [balData, ewalletData, turnoverData] = await Promise.all([
+apiFetch<any>("/api/wallet"),
+apiFetch<any>("/api/ewallet/bind"),
+apiFetch<any>("/api/turnover"),
 ]);
-setWalletBalance(walletData.wallet.mainBalance);
-setBoundBanks(bankData.banks || []);
-if (bankData.defaultBank) {
-setSelectedBankId(bankData.defaultBank.id);
-} else if (bankData.banks?.length > 0) {
-setSelectedBankId(bankData.banks[0].id);
+setWalletBalance(balData?.balance ?? balData?.mainBalance ?? 0);
+setEWalletAccounts(ewalletData?.accounts || []);
+if (ewalletData?.accounts?.length > 0) {
+setSelectedEWalletId(ewalletData.accounts[0].id);
 }
-// API returns { active: { totalRequired, totalCompleted, remaining, progress } }
-const active = turnoverData?.active;
-if (active) {
-const remaining = active.remaining || 0;
-setTurnover({
-required: active.totalRequired || 0,
-completed: active.totalCompleted || 0,
-remaining,
-progress: active.progress || 0,
-allowed: remaining === 0,
-});
-}
-} catch {}
+setTurnover(turnoverData);
+} catch { }
 };
-loadData();
-const interval = setInterval(loadData, 15000);
-return () => clearInterval(interval);
-}, [securityCheck]);
+fetchData();
+}, [isAuthenticated, securityCheck]);
 
-const submitWithdrawal = async () => {
-if (!user) {
-setError("Please log in first.");
+const handleSubmit = async () => {
+setMessage(null);
+setError(null);
+
+if (!selectedEWallet) {
+setError("Please bind an e-wallet account first.");
 return;
 }
 
-if (!selectedBank) {
-setError("Add a withdrawal account before submitting a request.");
+if (!password) {
+setError("Please enter your withdrawal password.");
 return;
 }
 
-if (numericAmount < 100 || numericAmount > 49999) {
-setError("Amount must be between PHP 100 and PHP 49,999.");
+if (numericAmount <= 0) {
+setError("Please enter a valid withdrawal amount.");
 return;
 }
 
@@ -123,83 +109,85 @@ setError("Insufficient balance.");
 return;
 }
 
-setLoading(true);
-setError(null);
-setMessage(null);
+if (turnover && !turnover.allowed) {
+setError(`Turnover requirement not met. Remaining: ${turnover.remaining.toFixed(2)}`);
+return;
+}
 
+setLoading(true);
 try {
-const data = await apiFetch<{ withdrawal: { id: string }; message: string }>('/api/withdraw/create', {
-method: 'POST',
+const res = await apiFetch<any>("/api/withdraw/create", {
+method: "POST",
+headers: { "Content-Type": "application/json" },
 body: JSON.stringify({
 amount: numericAmount,
-bankName: selectedBank.bankName,
-accountName: selectedBank.accountName,
-accountNumber: selectedBank.accountNumber,
+paymentMethod: selectedEWallet.provider,
+accountName: selectedEWallet.accountName,
+accountNumber: selectedEWallet.accountNumber,
 withdrawalPassword: password,
 remarks,
 }),
 });
-setMessage(data.message);
+
+if (res.success || res.withdrawNo) {
+setMessage(`Withdrawal request submitted successfully! Reference: ${res.withdrawNo || res.reference}`);
 setAmount("");
 setPassword("");
 setRemarks("");
-const balanceData = await apiFetch<{ wallet: { mainBalance: number } }>('/api/wallet');
-setWalletBalance(balanceData.wallet.mainBalance);
-} catch (caught) {
-setError((caught as Error).message);
+} else {
+setError(res.error || "Failed to submit withdrawal.");
+}
+} catch (err: any) {
+setError(err.message || "Failed to submit withdrawal.");
 } finally {
 setLoading(false);
 }
 };
 
-// Security check blocked UI
-if (securityCheck === "blocked") {
+if (!isAuthenticated) {
 return (
-<div className="space-y-6 pb-20">
-<SectionHeading
-eyebrow="Withdrawal Blocked"
-title="Security Verification Required"
-description="You must complete your Security Verification before you can withdraw."
-/>
-
-<GlassCard className="space-y-6">
-<div className="rounded-2xl border border-amber/20 bg-amber/5 p-4">
-<p className="text-sm text-amber font-semibold mb-1">Security Completion: {securityPercentage}%</p>
-<div className="h-2 w-full rounded-full bg-white/10 overflow-hidden mt-2">
-<div className="h-full rounded-full bg-gradient-to-r from-amber to-gold transition-all" style={{ width: `${securityPercentage}%` }} />
-</div>
-</div>
-
-<div className="space-y-2">
-<p className="text-sm text-white/60">Required items to complete:</p>
-{[
-{ label: "Mobile Number", key: "mobileVerified" },
-{ label: "Email Address", key: "emailVerified" },
-{ label: "Login Password", key: "loginPasswordSet" },
-{ label: "Withdrawal Password", key: "withdrawPasswordSet" },
-{ label: "Bank Account", key: "bankVerified" },
-].map((item) => {
-const isMissing = missingItems.includes(item.label);
-return (
-<div key={item.key} className={`flex items-center justify-between rounded-xl border px-4 py-3 ${
-isMissing ? "border-red/20 bg-red/5" : "border-emerald/20 bg-emerald/5"
-}`}>
-<span className={`text-sm ${isMissing ? "text-red/80" : "text-emerald"}`}>
-{item.label}
-</span>
-<span className={`text-xs font-semibold ${isMissing ? "text-red" : "text-emerald"}`}>
-{isMissing ? "❌ Missing" : "✅ Complete"}
-</span>
+<div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-gray-900 to-black p-4">
+<GlassCard className="p-8 text-center max-w-md w-full">
+<h2 className="text-2xl font-bold mb-4">Please Log In</h2>
+<p className="text-gray-400 mb-6">You need to be logged in to access the withdrawal page.</p>
+<Link href="/login" className="bg-yellow-500 text-black px-6 py-3 rounded-lg font-bold hover:bg-yellow-400 transition-colors">
+Go to Login
+</Link>
+</GlassCard>
 </div>
 );
-})}
-</div>
+}
 
-<Link
-href="/account"
-className="inline-flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-gold to-emerald px-6 py-3 text-sm font-semibold text-black transition hover:brightness-110"
->
-Go to Security Center
+if (securityCheck === "loading") {
+return (
+<div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-gray-900 to-black p-4">
+<div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-yellow-500" />
+</div>
+);
+}
+
+if (securityCheck === "blocked") {
+return (
+<div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-gray-900 to-black p-4">
+<GlassCard className="p-8 text-center max-w-md w-full">
+<div className="text-6xl mb-4">🔒</div>
+<h2 className="text-2xl font-bold mb-2">Account Security</h2>
+<p className="text-gray-400 mb-2">Complete all security requirements to enable withdrawals.</p>
+<div className="mb-4">
+<div className="w-full bg-gray-700 rounded-full h-3">
+<div className="bg-yellow-500 h-3 rounded-full transition-all" style={{ width: `${securityPercentage}%` }} />
+</div>
+<p className="text-sm text-gray-400 mt-1">{securityPercentage}% Complete</p>
+</div>
+<div className="text-left space-y-2 mb-6">
+{missingItems.map((item) => (
+<div key={item} className="flex items-center gap-2 text-red-400">
+<span>✕</span> <span>{item}</span>
+</div>
+))}
+</div>
+<Link href="/account" className="bg-yellow-500 text-black px-6 py-3 rounded-lg font-bold hover:bg-yellow-400 transition-colors">
+Complete Security Setup
 </Link>
 </GlassCard>
 </div>
@@ -207,179 +195,144 @@ Go to Security Center
 }
 
 return (
-<div className="space-y-6 pb-20">
-<SectionHeading
-eyebrow="Withdraw"
-title="Secure withdrawal request"
-description={securityCheck === "loading" ? "Checking security status..." : "Submit a real withdrawal request with bank details, password validation, and persistent transaction tracking."}
-/>
+<div className="min-h-screen bg-gradient-to-b from-gray-900 to-black p-4 md:p-8">
+<div className="max-w-2xl mx-auto">
+<SectionHeading>Withdraw Funds</SectionHeading>
 
-<div className="grid gap-6 lg:grid-cols-[1.35fr_0.65fr]">
-<GlassCard className="space-y-6">
-{securityCheck === "loading" ? (
-<div className="text-center py-8">
-<div className="animate-spin h-8 w-8 border-2 border-gold border-t-transparent rounded-full mx-auto" />
-<p className="mt-3 text-sm text-white/50">Verifying your security status...</p>
-</div>
-) : !canWithdraw ? (
-<div className="space-y-4">
-<div className="rounded-3xl border border-white/10 bg-black/40 p-6 text-center">
-<p className="text-lg font-semibold text-white">No Withdrawal Account Linked</p>
-<p className="mt-3 text-sm text-white/60">
-You must first link your withdrawal account in the Security Center before you can submit a withdrawal.
-</p>
-</div>
-<Link
-href="/security-center"
-className="inline-flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-gold to-yellow-500 px-6 py-3 text-sm font-semibold text-black transition hover:brightness-110"
->
-Go to Security Center
-</Link>
-</div>
-) : selectedBank ? (
-<>
+{/* Wallet Balance */}
+<GlassCard className="p-6 mb-6">
+<div className="flex justify-between items-center">
 <div>
-<p className="text-sm uppercase tracking-[0.25em] text-gold/70">Withdrawal account</p>
-<div className="mt-3 rounded-2xl border border-white/10 bg-black/35 px-4 py-4 text-white">
-<p className="font-semibold">{selectedBank.bankName}</p>
-<p className="mt-1 text-sm text-white/60">{selectedBank.accountName}</p>
-<p className="mt-1 text-sm text-white/60">{selectedBank.accountNumber}</p>
+<p className="text-gray-400 text-sm">Available Balance</p>
+<p className="text-3xl font-bold">₱{walletBalance !== null ? walletBalance.toLocaleString("en-PH", { minimumFractionDigits: 2 }) : "---"}</p>
 </div>
-{boundBanks.length > 1 && (
-<div className="mt-3">
-<p className="text-sm uppercase tracking-[0.25em] text-gold/70">Switch Bank</p>
+<div className="text-right">
+<p className="text-gray-400 text-sm">Fee</p>
+<p className="text-lg">₱0.00</p>
+</div>
+</div>
+</GlassCard>
+
+{/* E-Wallet Selection */}
+<GlassCard className="p-6 mb-6">
+<h3 className="text-lg font-semibold mb-4">Withdraw to E-Wallet</h3>
+{canWithdraw ? (
+<>
 <select
-value={selectedBankId}
-onChange={(e) => setSelectedBankId(e.target.value)}
-className="mt-2 w-full rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-white outline-none"
+value={selectedEWalletId}
+onChange={(e) => setSelectedEWalletId(e.target.value)}
+className="w-full bg-gray-800 border border-gray-700 rounded-lg p-3 text-white mb-4"
 >
-{boundBanks.map((bank) => (
-<option key={bank.id} value={bank.id}>
-{bank.bankName} - {bank.accountName}
+{eWalletAccounts.map((acc) => (
+<option key={acc.id} value={acc.id}>
+{acc.provider} - {acc.accountName} ({acc.accountNumber})
 </option>
 ))}
 </select>
+{selectedEWallet && (
+<div className="bg-gray-800 rounded-lg p-4 text-sm text-gray-300">
+<p><strong>Provider:</strong> {selectedEWallet.provider}</p>
+<p><strong>Account:</strong> {selectedEWallet.accountName}</p>
+<p><strong>Mobile:</strong> {selectedEWallet.accountNumber}</p>
 </div>
 )}
-</div>
-
-<div>
-<p className="text-sm uppercase tracking-[0.25em] text-gold/70">Amount</p>
-<input
-value={amount}
-onChange={(event) => setAmount(event.target.value)}
-placeholder="Enter amount"
-className="mt-3 w-full rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-white outline-none"
-/>
-</div>
-
-<div>
-<p className="text-sm uppercase tracking-[0.25em] text-gold/70">Withdrawal password</p>
-<input
-type="password"
-value={password}
-onChange={(event) => setPassword(event.target.value)}
-placeholder="Withdrawal password"
-className="mt-3 w-full rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-white outline-none"
-/>
-</div>
-
-<div>
-<p className="text-sm uppercase tracking-[0.25em] text-gold/70">Remarks</p>
-<textarea
-value={remarks}
-onChange={(event) => setRemarks(event.target.value)}
-placeholder="Optional notes"
-className="mt-3 min-h-24 w-full rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-white outline-none"
-/>
-</div>
-
-<button
-type="button"
-onClick={submitWithdrawal}
-disabled={loading}
-className="rounded-2xl bg-gradient-to-r from-gold to-yellow-500 px-6 py-3 text-sm font-semibold text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
->
-{loading ? 'Submitting...' : 'Submit withdrawal'}
-</button>
-
-{message ? <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-4 text-sm text-emerald-200">{message}</div> : null}
-{error ? <div className="rounded-2xl border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-200">{error}</div> : null}
 </>
 ) : (
-<div className="space-y-4">
-<div className="rounded-3xl border border-white/10 bg-black/40 p-6 text-center">
-<p className="text-lg font-semibold text-white">No Withdrawal Account Linked</p>
-<p className="mt-3 text-sm text-white/60">
-You must first link your withdrawal account in the Security Center before you can submit a withdrawal.
-</p>
-</div>
-<Link
-href="/security-center"
-className="inline-flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-gold to-yellow-500 px-6 py-3 text-sm font-semibold text-black transition hover:brightness-110"
->
-Go to Security Center
+<div className="text-center py-4">
+<p className="text-gray-400 mb-4">No e-wallet account bound yet.</p>
+<Link href="/account" className="bg-yellow-500 text-black px-4 py-2 rounded-lg font-semibold hover:bg-yellow-400 transition-colors">
+Bind E-Wallet
 </Link>
 </div>
 )}
 </GlassCard>
 
-{/* Turnover Progress */}
-<GlassCard>
-<div className="rounded-2xl border border-white/10 bg-black/35 p-4">
-<p className="text-xs uppercase tracking-[0.25em] text-gold/70 mb-3">Turnover Requirement</p>
-{turnover ? (
-<div className="space-y-3">
-<div className="flex items-center justify-between">
-<span className="text-xs text-white/50">Required</span>
-<span className="text-sm font-semibold text-white">₱{turnover.required.toFixed(2)}</span>
-</div>
-<div className="flex items-center justify-between">
-<span className="text-xs text-white/50">Current Valid Bets</span>
-<span className="text-sm font-semibold text-gold">₱{turnover.completed.toFixed(2)}</span>
-</div>
-<div className="flex items-center justify-between">
-<span className="text-xs text-white/50">Remaining</span>
-<span className={`text-sm font-semibold ${turnover.remaining > 0 ? 'text-red' : 'text-emerald'}`}>
-₱{turnover.remaining.toFixed(2)}
-</span>
-</div>
-<div className="flex items-center justify-between">
-<span className="text-xs text-white/50">Progress</span>
-<span className={`text-sm font-semibold ${turnover.remaining === 0 ? 'text-emerald' : 'text-gold'}`}>
-{turnover.progress.toFixed(1)}%
-</span>
-</div>
-{/* Progress Bar */}
-<div className="h-2.5 w-full rounded-full bg-white/10 overflow-hidden">
-<div
-className={`h-full rounded-full transition-all duration-700 ease-out ${
-turnover.remaining === 0
-? 'bg-emerald'
-: 'bg-gradient-to-r from-gold to-yellow-500'
-}`}
-style={{ width: `${Math.min(100, turnover.progress)}%` }}
+{/* Amount Input */}
+<GlassCard className="p-6 mb-6">
+<h3 className="text-lg font-semibold mb-4">Amount</h3>
+<div className="relative">
+<span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg font-bold">₱</span>
+<input
+type="number"
+value={amount}
+onChange={(e) => setAmount(e.target.value)}
+placeholder="0.00"
+className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-10 pr-4 py-3 text-white text-lg"
+min="0"
+step="0.01"
 />
 </div>
-{turnover.remaining > 0 ? (
-<div className="mt-2 rounded-xl border border-amber/20 bg-amber/5 p-3">
-<p className="text-xs text-amber/90">
-You must complete your turnover requirement before requesting a withdrawal.
-</p>
-</div>
-) : (
-<div className="mt-2 rounded-xl border border-emerald/20 bg-emerald/5 p-3">
-<p className="text-xs text-emerald font-semibold">✅ Turnover Completed — Withdrawal Available</p>
-</div>
+{receiveAmount > 0 && (
+<p className="text-gray-400 text-sm mt-2">You will receive: ₱{receiveAmount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</p>
 )}
-</div>
-) : (
-<div className="flex items-center justify-center py-4">
-<div className="h-5 w-5 animate-spin rounded-full border-2 border-gold border-t-transparent" />
-</div>
-)}
+</GlassCard>
+
+{/* Withdrawal Password */}
+<GlassCard className="p-6 mb-6">
+<h3 className="text-lg font-semibold mb-4">Withdrawal Password</h3>
+<input
+type="password"
+value={password}
+onChange={(e) => setPassword(e.target.value)}
+placeholder="Enter withdrawal password"
+className="w-full bg-gray-800 border border-gray-700 rounded-lg p-3 text-white"
+/>
+<div className="mt-2 text-right">
+<Link href="/forgot-password" className="text-yellow-500 text-sm hover:underline">
+Forgot withdrawal password?
+</Link>
 </div>
 </GlassCard>
+
+{/* Turnover Requirement */}
+{turnover && !turnover.allowed && (
+<GlassCard className="p-6 mb-6">
+<h3 className="text-lg font-semibold mb-4">Turnover Requirement</h3>
+<div className="w-full bg-gray-700 rounded-full h-3 mb-2">
+<div className="bg-yellow-500 h-3 rounded-full" style={{ width: `${Math.min(turnover.progress, 100)}%` }} />
+</div>
+<p className="text-sm text-gray-400">
+{turnover.completed.toFixed(2)} / {turnover.required.toFixed(2)} ({turnover.progress.toFixed(1)}%)
+</p>
+<p className="text-red-400 text-sm mt-1">Remaining turnover: {turnover.remaining.toFixed(2)}</p>
+</GlassCard>
+)}
+
+{/* Remarks (Optional) */}
+<GlassCard className="p-6 mb-6">
+<h3 className="text-lg font-semibold mb-4">Remarks (Optional)</h3>
+<textarea
+value={remarks}
+onChange={(e) => setRemarks(e.target.value)}
+placeholder="Any notes for this withdrawal?"
+className="w-full bg-gray-800 border border-gray-700 rounded-lg p-3 text-white resize-none"
+rows={2}
+/>
+</GlassCard>
+
+{/* Messages */}
+{message && (
+<div className="bg-green-900/50 border border-green-700 rounded-lg p-4 mb-6 text-green-300">{message}</div>
+)}
+{error && (
+<div className="bg-red-900/50 border border-red-700 rounded-lg p-4 mb-6 text-red-300">{error}</div>
+)}
+
+{/* Submit Button */}
+<button
+onClick={handleSubmit}
+disabled={loading || !canWithdraw}
+className="w-full bg-yellow-500 text-black py-4 rounded-lg font-bold text-lg hover:bg-yellow-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+>
+{loading ? "Processing..." : "Submit Withdrawal"}
+</button>
+
+{/* Recent Withdrawals Link */}
+<div className="text-center mt-4">
+<Link href="/withdraw-history" className="text-yellow-500 hover:underline text-sm">
+View Withdrawal History
+</Link>
+</div>
 </div>
 </div>
 );
