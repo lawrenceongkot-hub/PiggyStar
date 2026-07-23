@@ -33,7 +33,7 @@ createdAt: true,
 },
 });
 
-const banks = await prisma.withdrawBank.findMany({
+const banks = await prisma.eWalletAccount.findMany({
 where: { userId },
 orderBy: { createdAt: "desc" },
 });
