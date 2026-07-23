@@ -234,6 +234,26 @@ model GameProvider {
   GameHistory GameHistory[]
   ProviderTransaction ProviderTransaction[]
   gameTypes GameProviderType[]
+  GameSession GameSession[]
+}
+
+model GameSession {
+  id String @id
+  userId String
+  globalCode String
+  provider String
+  launchUrl String
+  status String @default("ACTIVE") // ACTIVE, CLOSED, EXPIRED
+  expiresAt DateTime
+  closedAt DateTime?
+  metadata String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  GameProvider GameProvider? @relation(fields: [provider], references: [slug])
+  User User @relation(fields: [userId], references: [id])
+  @@index([userId])
+  @@index([status])
+  @@index([expiresAt])
 }
 
 model GameProviderType {
@@ -504,6 +524,7 @@ WithdrawalLog WithdrawalLog[]
 ReferralCode ReferralCode?
 AccountSecurity AccountSecurity?
 VIPReward VIPReward[]
+GameSession GameSession[]
 }
 
 model VIPProgress {
