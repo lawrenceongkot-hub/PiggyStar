@@ -197,7 +197,7 @@ Complete Security Setup
 return (
 <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black p-4 md:p-8">
 <div className="max-w-2xl mx-auto">
-<SectionHeading>Withdraw Funds</SectionHeading>
+<SectionHeading title="Withdraw Funds" />
 
 {/* Wallet Balance */}
 <GlassCard className="p-6 mb-6">
