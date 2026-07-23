@@ -237,7 +237,7 @@ data: { verified: true },
 });
 
 // Sync AccountSecurity table for Security Center
-await updateSecurityStatus(user.id, { mobileVerified: true });
+await updateSecurityStatus(user.id);
 
 return NextResponse.json({ message: "Mobile verified successfully" });
 }

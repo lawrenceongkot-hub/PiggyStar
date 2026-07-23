@@ -227,7 +227,7 @@ data: { verified: true },
 });
 
 // Sync AccountSecurity table for Security Center
-await updateSecurityStatus(user.id, { emailVerified: true });
+await updateSecurityStatus(user.id);
 
 return NextResponse.json({ message: "Email verified successfully" });
 }
