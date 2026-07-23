@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserFromRequest } from "@/lib/server/auth";
+import { getCurrentUser } from "@/lib/server/auth";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getUserFromRequest(request);
+    const user = await getCurrentUser(request);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { provider, accountName, accountNumber } = await request.json();
@@ -23,26 +23,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid mobile number format" }, { status: 400 });
     }
 
-    // Check if user already has an e-wallet account for this provider
     const existing = await prisma.eWalletAccount.findFirst({
       where: { userId: user.id, provider },
     });
 
     if (existing) {
-      // Update existing
       await prisma.eWalletAccount.update({
         where: { id: existing.id },
-        data: { accountName, accountNumber, verified: false },
+        data: { accountName, accountNumber: accountNumber.replace(/\s/g, ""), verified: false },
       });
     } else {
-      // Deactivate all others if only one is allowed
-      if (!request.headers.get("x-admin-enabled")) {
-        await prisma.eWalletAccount.updateMany({
-          where: { userId: user.id },
-          data: { isDefault: false },
-        });
-      }
-
       await prisma.eWalletAccount.create({
         data: {
           userId: user.id,
@@ -55,12 +45,6 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    await prisma.accountSecurity.upsert({
-      where: { userId: user.id },
-      update: { eWalletVerified: true },
-      create: { userId: user.id, eWalletVerified: true },
-    });
-
     return NextResponse.json({ success: true, message: "E-wallet account saved successfully" });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "Failed to bind e-wallet" }, { status: 500 });
@@ -69,7 +53,7 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getUserFromRequest(request);
+    const user = await getCurrentUser(request);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const accounts = await prisma.eWalletAccount.findMany({
@@ -85,7 +69,7 @@ export async function GET(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const user = await getUserFromRequest(request);
+    const user = await getCurrentUser(request);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { id } = await request.json();
