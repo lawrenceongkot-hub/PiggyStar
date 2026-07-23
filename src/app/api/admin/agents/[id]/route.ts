@@ -17,7 +17,6 @@ const agent = await prisma.user.findUnique({
 where: { id },
 include: {
 Wallet: true,
-BankAccount: { where: { status: "ACTIVE" } },
 EWalletAccount: true,
 VIPProgress: true,
 PlayerStatistics: true,
